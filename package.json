@@ -1,0 +1,8 @@
+{
+  "name": "sogolytics-demo-booking",
+  "version": "1.0.0",
+  "dependencies": {
+    "luxon": "^3.4.4",
+    "node-fetch": "^2.7.0"
+  }
+}
