@@ -1,0 +1,310 @@
+/* ==========================================================================
+   Sogolytics Demo Booking Widget — WordPress plugin styles
+   Matches the Sogolytics site palette. Scoped under .sgbk-* so there
+   are zero conflicts with the theme or Contact Form 7 styles.
+   ========================================================================== */
+
+:root {
+  --sgbk-teal:        #02BECC;
+  --sgbk-green:       #0D6E65;
+  --sgbk-yellow:      #F5E03C;
+  --sgbk-yellow-dark: #D4BE1A;
+  --sgbk-page-bg:     #0C3530;
+  --sgbk-card-bg:     #113D37;
+  --sgbk-border:      rgba(255,255,255,0.12);
+  --sgbk-input-bg:    rgba(255,255,255,0.07);
+  --sgbk-muted:       rgba(255,255,255,0.55);
+  --sgbk-white:       #ffffff;
+  --sgbk-green-text:  #4ADE80;
+  --sgbk-red:         #F87171;
+  --sgbk-amber:       #FCD34D;
+}
+
+/* Widget wrapper */
+.sgbk-widget {
+  position: relative;
+  background: var(--sgbk-card-bg);
+  border: 1px solid var(--sgbk-border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  color: var(--sgbk-white);
+  font-family: system-ui, -apple-system, sans-serif;
+  max-width: 500px;           /* same width as the original lead-form card */
+}
+
+/* Demo badge */
+.sgbk-demo-badge {
+  position: absolute;
+  top: 14px; right: 14px;
+  background: rgba(245,224,60,0.12);
+  color: var(--sgbk-yellow);
+  border: 1px solid rgba(245,224,60,0.3);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 3px 10px;
+}
+
+/* ── Alerts ── */
+.sgbk-alert {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.sgbk-alert--amber {
+  background: rgba(252,211,77,0.1);
+  color: var(--sgbk-amber);
+  border: 1px solid rgba(252,211,77,0.25);
+}
+.sgbk-alert--red {
+  background: rgba(248,113,113,0.1);
+  color: var(--sgbk-red);
+  border: 1px solid rgba(248,113,113,0.25);
+}
+
+/* ── Spinner ── */
+.sgbk-spinner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+}
+.sgbk-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid rgba(2,190,204,0.2);
+  border-top-color: var(--sgbk-teal);
+  border-radius: 50%;
+  animation: sgbk-spin 0.7s linear infinite;
+  display: inline-block;
+}
+.sgbk-spinner--sm {
+  width: 16px; height: 16px;
+  border-width: 2px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+@keyframes sgbk-spin { to { transform: rotate(360deg); } }
+.sgbk-spinner-text { font-size: 13px; color: var(--sgbk-muted); }
+
+/* ── Date strip ── */
+.sgbk-date-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+}
+.sgbk-date-strip::-webkit-scrollbar { display: none; }
+
+.sgbk-date-pill {
+  flex-shrink: 0;
+  background: var(--sgbk-input-bg);
+  border: 1px solid var(--sgbk-border);
+  color: rgba(255,255,255,0.75);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.sgbk-date-pill:hover { border-color: var(--sgbk-teal); color: var(--sgbk-white); }
+.sgbk-date-pill.is-active {
+  background: var(--sgbk-teal);
+  border-color: var(--sgbk-teal);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Slot grid ── */
+.sgbk-slot-loading {
+  display: flex;
+  align-items: center;
+  padding: 20px 0;
+  font-size: 13px;
+  color: var(--sgbk-muted);
+}
+.sgbk-slot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sgbk-slot-btn {
+  background: var(--sgbk-input-bg);
+  border: 1px solid var(--sgbk-border);
+  color: rgba(255,255,255,0.85);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: center;
+}
+.sgbk-slot-btn:hover { border-color: var(--sgbk-teal); color: var(--sgbk-white); }
+.sgbk-slot-btn.is-selected {
+  background: var(--sgbk-teal);
+  border-color: var(--sgbk-teal);
+  color: #fff;
+  font-weight: 600;
+}
+.sgbk-no-slots {
+  grid-column: span 2;
+  text-align: center;
+  color: var(--sgbk-muted);
+  font-size: 13px;
+  padding: 20px 0;
+}
+.sgbk-avail-error {
+  color: var(--sgbk-red);
+  font-size: 13px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* ── Slot summary (shown above CF7 form) ── */
+.sgbk-slot-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sgbk-green-text);
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: rgba(74,222,128,0.07);
+  border: 1px solid rgba(74,222,128,0.18);
+  border-radius: 8px;
+}
+
+/* "Pick a different time" */
+.sgbk-btn-back {
+  background: none;
+  border: none;
+  color: var(--sgbk-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+  transition: color 0.2s;
+  display: block;
+}
+.sgbk-btn-back:hover { color: var(--sgbk-white); }
+
+/* ── CF7 form override styles ──────────────────────────────────────────
+   These only apply inside a .wpcf7 that follows .sgbk-widget, so they
+   don't affect other CF7 forms on the site.
+   Add class "sgbk-cf7-form" to the CF7 form's Additional CSS field.
+   ──────────────────────────────────────────────────────────────────── */
+
+.sgbk-cf7-form .wpcf7-form-control-wrap,
+.sgbk-cf7-form p { margin-bottom: 12px; }
+
+.sgbk-cf7-form input[type="text"],
+.sgbk-cf7-form input[type="email"],
+.sgbk-cf7-form input[type="tel"],
+.sgbk-cf7-form select {
+  width: 100%;
+  background: rgba(255,255,255,0.95) !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  border-radius: 8px !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  color: #1a1a1a !important;
+  outline: none !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+  box-sizing: border-box !important;
+}
+.sgbk-cf7-form input:focus,
+.sgbk-cf7-form select:focus {
+  border-color: #02BECC !important;
+  box-shadow: 0 0 0 3px rgba(2,190,204,0.15) !important;
+}
+
+.sgbk-cf7-form input[type="submit"] {
+  width: 100% !important;
+  background: var(--sgbk-yellow) !important;
+  color: #1a1a1a !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 13px 20px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: background 0.2s !important;
+  margin-top: 4px !important;
+}
+.sgbk-cf7-form input[type="submit"]:hover {
+  background: var(--sgbk-yellow-dark) !important;
+}
+.sgbk-cf7-form .wpcf7-not-valid-tip {
+  color: var(--sgbk-red) !important;
+  font-size: 12px !important;
+}
+.sgbk-cf7-form .wpcf7-response-output {
+  border: none !important;
+  padding: 8px 0 !important;
+  font-size: 13px !important;
+  color: var(--sgbk-red) !important;
+  background: none !important;
+  margin: 0 !important;
+}
+
+/* ── Confirmation panel ── */
+.sgbk-confirm {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+.sgbk-confirm__icon {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: rgba(2,190,204,0.12);
+  border: 1px solid rgba(2,190,204,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.sgbk-confirm__heading {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--sgbk-white);
+}
+.sgbk-confirm__time {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sgbk-green-text);
+  margin-bottom: 8px;
+}
+.sgbk-confirm__msg {
+  font-size: 13px;
+  color: var(--sgbk-muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.sgbk-btn-teams {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--sgbk-teal);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.sgbk-btn-teams:hover { opacity: 0.85; }
+
+/* ── Responsive ── */
+@media (max-width: 520px) {
+  .sgbk-widget { padding: 20px 16px; }
+  .sgbk-slot-grid { grid-template-columns: 1fr; }
+}

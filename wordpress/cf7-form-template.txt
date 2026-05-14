@@ -1,0 +1,86 @@
+====================================================================
+CONTACT FORM 7 — SOGOLYTICS DEMO BOOKING FORM
+====================================================================
+
+Paste the block below into the "Form" tab of your CF7 form editor.
+(WordPress Admin → Contact → Add New)
+
+--------------------------------------------------------------------
+FORM BODY
+--------------------------------------------------------------------
+
+[hidden booking-slot ""]
+[hidden booking-region ""]
+[hidden booking-timezone ""]
+[hidden booking-country ""]
+
+<div class="sgbk-form-row sgbk-form-row--half">
+  <div>
+    <label>First name</label>
+    [text* first-name placeholder "First name"]
+  </div>
+  <div>
+    <label>Last name</label>
+    [text* last-name placeholder "Last name"]
+  </div>
+</div>
+
+<div class="sgbk-form-row">
+  <label>Business email address</label>
+  [email* your-email placeholder "jane@company.com"]
+</div>
+
+<div class="sgbk-form-row">
+  <label>Phone <span style="opacity:.6">(optional)</span></label>
+  [tel your-phone placeholder "Phone (optional)"]
+</div>
+
+<div class="sgbk-form-row">
+  <label>What kind of projects do you plan to do?</label>
+  [select* project-type "Customer Experience (CX)" "Employee Experience (EX)" "Market Research" "Other"]
+</div>
+
+[submit "Request a Demo →"]
+
+--------------------------------------------------------------------
+MAIL tab — Subject (suggested)
+--------------------------------------------------------------------
+
+Demo request from [first-name] [last-name]
+
+--------------------------------------------------------------------
+MAIL tab — Message body (suggested)
+--------------------------------------------------------------------
+
+A new demo has been requested via the website.
+
+Name:         [first-name] [last-name]
+Email:        [your-email]
+Phone:        [your-phone]
+Project type: [project-type]
+
+Booked slot (UTC): [booking-slot]
+Region bucket:     [booking-region]
+Timezone:          [booking-timezone]
+Country:           [booking-country]
+
+--------------------------------------------------------------------
+ADDITIONAL SETTINGS tab
+--------------------------------------------------------------------
+
+Add this so CF7 does not clear hidden fields before submission:
+
+  skip_mail: false
+
+--------------------------------------------------------------------
+ADDITIONAL CSS CLASS (in CF7 form settings)
+--------------------------------------------------------------------
+
+Add the following CSS class to the CF7 form wrapper so the booking
+plugin's styles apply to the form inputs and submit button:
+
+  sgbk-cf7-form
+
+(In the CF7 editor, go to the gear icon → "Additional CSS class name")
+
+====================================================================
