@@ -2,138 +2,162 @@
 
 ## Architecture
 
+Everything runs inside WordPress — no Vercel, no external hosting needed.
+
 ```
 [WordPress Page]
-  ├── [sogolytics_booking api_url="..." cf7_id="123"]   ← date picker + slots
-  └── [contact-form-7 id="123"]                         ← CF7 form (existing plugin)
+  ├── [sogolytics_booking cf7_id="123"]    ← date picker + slot grid (shortcode)
+  └── [contact-form-7 id="123"]            ← CF7 form
 
-[Vercel]
-  ├── /api/availability  ← called by the widget JS to fetch free slots
-  └── /api/book          ← called after CF7 mailsent to create calendar event
+[WordPress REST API]  (inside the plugin — same server)
+  ├── GET  /wp-json/sgbk/v1/availability   ← fetches free slots
+  └── POST /wp-json/sgbk/v1/book           ← creates calendar event
+
+[PHP inside the plugin]
+  ├── → Microsoft Graph API (Outlook calendar + Teams link)
+  └── → Salesforce REST API (Lead creation, optional)
 ```
 
-**Flow:**
-1. Visitor lands on page → IP detected silently → correct calendar loaded
-2. Visitor picks a date → slot grid loads
+**Visitor flow:**
+1. Page loads → IP detected silently → correct calendar region selected
+2. Visitor picks a date → slot grid loads (PHP calls MS Graph)
 3. Visitor clicks a slot → CF7 form scrolls into view, hidden fields pre-filled
 4. Visitor fills + submits CF7 form → CF7 validates, sends admin email, saves entry
-5. On `wpcf7mailsent` event → widget calls Vercel `/api/book`
-6. Vercel creates Outlook calendar event + Teams link + Salesforce lead
-7. Confirmation panel replaces widget
+5. On CF7's `wpcf7mailsent` JS event → plugin calls `/wp-json/sgbk/v1/book`
+6. PHP creates Outlook calendar event with Teams link + Salesforce lead
+7. Confirmation panel replaces the widget
 
 ---
 
-## Step 1 — Deploy the Vercel API
+## Step 1 — Install the plugin
 
-1. Push this repo to GitHub (already done)
-2. Import the repo at vercel.com → New Project
-3. Add all environment variables from `.env.example` in Vercel dashboard
-4. Deploy → note your deployment URL e.g. `https://sogolytics-demo.vercel.app`
+1. Zip the folder `wordpress/sogolytics-booking/`
+2. In WP Admin go to **Plugins → Add New → Upload Plugin** and upload the zip
+3. Click **Activate**
+
+**Or** copy the folder via FTP/SSH directly to:
+```
+wp-content/plugins/sogolytics-booking/
+```
 
 ---
 
-## Step 2 — Install the WordPress plugin
+## Step 2 — Enter credentials
 
-1. In your WordPress admin go to **Plugins → Add New → Upload Plugin**
-2. Zip the folder `wordpress/sogolytics-booking/` and upload it
-3. Activate **Sogolytics Demo Booking**
+Go to **Settings → Demo Booking** in WP Admin.
 
-**Or** copy the folder directly to `wp-content/plugins/sogolytics-booking/` via FTP/SSH.
+Fill in the following fields:
+
+| Field | Where to find it |
+|-------|-----------------|
+| Azure Tenant ID | Azure Portal → Azure AD → App registrations → your app → Directory (tenant) ID |
+| Azure Client ID | Same page → Application (client) ID |
+| Azure Client Secret | App → Certificates & secrets → New client secret → copy Value |
+| US Calendar | Email of the US demo calendar mailbox (default: us-demos@sogolytics.com) |
+| RoW Calendar | Email of the RoW demo calendar mailbox (default: row-demos@sogolytics.com) |
+| Salesforce fields | All optional — booking works without them |
+
+> The settings page shows a status badge: **Live mode** (green) when Azure is
+> configured, **Demo mode** (yellow) when not. In demo mode, realistic mock
+> slots are generated and booking simulates success — the widget is fully
+> usable for testing.
+
+**Azure permissions required** (Application permissions, not Delegated):
+- `Calendars.Read`
+- `Calendars.ReadWrite`
+- `User.Read.All`
+Grant admin consent after adding them.
 
 ---
 
 ## Step 3 — Create the Contact Form 7 form
 
-1. Go to **Contact → Add New**
-2. Give it a name e.g. "Demo Booking Form"
+1. **Contact → Add New**
+2. Name it e.g. "Demo Booking Form"
 3. Replace the default form body with the content from `wordpress/cf7-form-template.txt`
-4. In the **Mail** tab fill in the subject and message body (templates in the same file)
-5. In the form settings gear icon → **Additional CSS class name** add:
+4. In the **Mail** tab fill in subject and message body (templates in same file)
+5. Click the gear icon → **Additional CSS class name**, add:
    ```
    sgbk-cf7-form
    ```
-6. Save the form and note the **Form ID** (visible in the CF7 forms list, e.g. 123)
+   This applies the dark-teal input styling from the plugin's CSS.
+6. Save and note the **Form ID** (shown in the CF7 forms list, e.g. 123)
 
 ---
 
-## Step 4 — Add shortcodes to your page
+## Step 4 — Add shortcodes to the page
 
-Edit the WordPress page where you want the booking widget (e.g. the NPS/CSAT product page).
-
-Replace the existing lead form section with two shortcodes:
+Edit your WordPress page (e.g. the NPS/CSAT product page). Replace the
+existing lead-form block with:
 
 ```
-<!-- Date picker + slot grid -->
-[sogolytics_booking api_url="https://sogolytics-demo.vercel.app" cf7_id="123"]
+[sogolytics_booking cf7_id="123"]
 
-<!-- CF7 form — place directly below, stays hidden until a slot is picked -->
 [contact-form-7 id="123"]
 ```
 
-> **Tip:** Both shortcodes can live inside the same column/block. The CF7 form
-> is always present in the DOM so CF7's JS loads correctly — the widget JS
-> scrolls it into view when a slot is selected.
+Replace `123` with your actual CF7 form ID in both places.
+
+> Both shortcodes go in the same column. The CF7 form is always present
+> in the DOM (CF7 needs this for its own JS); the booking widget scrolls it
+> into view only after a slot is selected.
 
 ---
 
-## Step 5 — Style the CF7 form to match
-
-The plugin ships `booking.css` which styles CF7 inputs to match the Sogolytics
-dark-teal theme when you add the `sgbk-cf7-form` CSS class (Step 3).
-
-If your theme overrides styles, add this to your **Additional CSS** (Appearance → Customize):
-
-```css
-.sgbk-cf7-form input[type="text"],
-.sgbk-cf7-form input[type="email"],
-.sgbk-cf7-form input[type="tel"],
-.sgbk-cf7-form select {
-  background: rgba(255,255,255,0.95) !important;
-  border-radius: 8px !important;
-  color: #1a1a1a !important;
-}
-.sgbk-cf7-form input[type="submit"] {
-  background: #F5E03C !important;
-  border-radius: 999px !important;
-  font-weight: 700 !important;
-}
-```
-
----
-
-## Step 6 — Test the full flow
+## Step 5 — Test the full flow
 
 1. Open the page in a browser
-2. Watch spinner → slots appear
-3. Click a slot → CF7 form scrolls into view, slot summary shown in green
-4. Fill the form → click submit
-5. CF7 confirms mail sent → widget calls Vercel API
-6. Confirmation panel shows booked time + Teams link (if live credentials set)
+2. Spinner → slot grid appears (DEMO badge if no Azure credentials)
+3. Click a date pill → slots reload
+4. Click a time slot → CF7 form scrolls into view, green summary shown
+5. Fill the form → Submit
+6. CF7 shows its success message → booking API fires
+7. Confirmation panel: "You're booked!" with the selected time
 
-**Without Vercel credentials (demo mode):**
-- Slots are generated from mock data
-- Booking returns a fake success
-- DEMO badge appears in the widget corner
-- Full UI flow still works end-to-end
+**With live Azure credentials:** Outlook calendar event is created with Teams
+link; the confirmation panel shows a "Join Teams call" button.
 
 ---
 
-## CF7 field name reference
+## CF7 hidden field reference
 
-| CF7 field name     | Purpose                              |
-|--------------------|--------------------------------------|
-| `booking-slot`     | ISO timestamp of selected slot (UTC) |
-| `booking-region`   | `us` or `row`                        |
-| `booking-timezone` | IANA timezone e.g. `Asia/Kolkata`    |
-| `booking-country`  | ISO country code e.g. `IN`           |
-| `first-name`       | Visitor first name                   |
-| `last-name`        | Visitor last name                    |
-| `your-email`       | Work email                           |
-| `your-phone`       | Phone (optional)                     |
-| `project-type`     | Dropdown selection                   |
+These four hidden fields must be present in the CF7 form. The widget JS
+pre-fills them when a slot is selected:
 
-> Field names must match exactly — the booking widget JS reads them by name
-> from the `wpcf7mailsent` event detail.
+| CF7 field name      | Content                               |
+|---------------------|---------------------------------------|
+| `booking-slot`      | ISO timestamp of selected slot (UTC)  |
+| `booking-region`    | `us` or `row`                         |
+| `booking-timezone`  | IANA timezone e.g. `Asia/Kolkata`     |
+| `booking-country`   | ISO country code e.g. `IN`            |
+
+Visible CF7 field names (must match exactly for the booking API to read them):
+
+| CF7 field name  | Maps to         |
+|-----------------|-----------------|
+| `first-name`    | firstName        |
+| `last-name`     | lastName         |
+| `your-email`    | email            |
+| `your-phone`    | phone (optional) |
+| `project-type`  | projectType      |
+
+---
+
+## REST API endpoints
+
+Both endpoints are public (no authentication required — they only read/write
+to the configured calendars). They are protected against CSRF via WP nonce.
+
+```
+GET /wp-json/sgbk/v1/availability
+  ?region=us|row
+  &date=YYYY-MM-DD
+  &timezone=America%2FNew_York
+
+POST /wp-json/sgbk/v1/book
+Content-Type: application/json
+{ region, slot, firstName, lastName, email, phone, projectType, timezone, country }
+```
 
 ---
 
@@ -141,8 +165,9 @@ If your theme overrides styles, add this to your **Additional CSS** (Appearance 
 
 | Symptom | Fix |
 |---------|-----|
-| Slots never load | Check `api_url` has no trailing slash; check CORS on Vercel |
-| CF7 form not found | Confirm `cf7_id` matches the form's post ID in WP admin |
-| Booking API not called after CF7 submit | Confirm `wpcf7mailsent` fires (check browser console); confirm hidden `booking-slot` field is present in the CF7 form |
-| "Something went wrong" after CF7 | Check Vercel function logs; Vercel URL may be wrong |
-| DEMO badge shows | Azure credentials not set in Vercel env vars |
+| Slots never load | Check WP permalink structure is not set to "Plain" (REST API needs pretty permalinks). Go to Settings → Permalinks → save any non-plain option. |
+| CF7 form not found | Confirm `cf7_id` in shortcode matches the form's post ID |
+| Booking API not called | Open browser console — check `wpcf7mailsent` fires; check hidden `booking-slot` has a value |
+| 403 on REST calls | Plugin may not be activated; check REST API is not disabled by a security plugin |
+| DEMO badge shows | Azure credentials not entered in Settings → Demo Booking |
+| Teams link missing | Confirm the Azure app has `Calendars.ReadWrite` with admin consent granted |

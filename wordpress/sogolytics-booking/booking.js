@@ -1,38 +1,41 @@
 /**
  * Sogolytics Demo Booking — WordPress widget JS
  *
- * How it works with Contact Form 7:
- *  1. Widget renders date strip + slot grid
- *  2. User picks a slot → hidden CF7 fields are pre-filled,
- *     CF7 form wrapper scrolls into view
- *  3. User fills + submits the CF7 form
- *  4. On CF7's `wpcf7mailsent` event → POST /api/book on Vercel
- *  5. Booking API creates Outlook event + Salesforce lead
- *  6. Confirmation panel replaces the widget
+ * API endpoints are WordPress REST routes (/wp-json/sgbk/v1/*)
+ * injected via wp_localize_script as window.sgbkConfig.apiBase
+ *
+ * Flow with Contact Form 7:
+ *  1. Widget: date strip + slot grid
+ *  2. Slot click → pre-fills CF7 hidden fields, scrolls form into view
+ *  3. CF7 submit → wpcf7mailsent fires → POST /wp-json/sgbk/v1/book
+ *  4. Confirmation panel shown
  */
 
 (function () {
   'use strict';
 
-  // ── Globals ──────────────────────────────────────────────────────────────
-  var _region   = 'row';
-  var _country  = '';
-  var _timezone = 'UTC';
-  var _selectedDate = '';
-  var _selectedSlot = null; // { iso, display }
-  var _email = '';          // captured from CF7 inputs on submit
+  // ── Config (injected by wp_localize_script) ───────────────────────────────
+  var API_BASE = (window.sgbkConfig && window.sgbkConfig.apiBase) || '/wp-json/sgbk/v1';
+  var WP_NONCE = (window.sgbkConfig && window.sgbkConfig.nonce)   || '';
 
-  // ── Find widget on page ───────────────────────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────
+  var _region       = 'row';
+  var _country      = '';
+  var _timezone     = 'UTC';
+  var _selectedDate = '';
+  var _selectedSlot = null;
+  var _email        = '';
+
+  // ── Widget root ───────────────────────────────────────────────────────────
   var widget = document.querySelector('.sgbk-widget');
   if (!widget) return;
 
-  var API_URL = widget.dataset.apiUrl || '';
-  var CF7_ID  = parseInt(widget.dataset.cf7Id || '0', 10);
+  var CF7_ID = parseInt(widget.dataset.cf7Id || '0', 10);
 
   // ── DOM helpers ───────────────────────────────────────────────────────────
-  function $w(id) { return document.getElementById(id); }
-  function show(el) { if (el) el.hidden = false; }
-  function hide(el) { if (el) el.hidden = true; }
+  var $w = function (id) { return document.getElementById(id); };
+  var show = function (el) { if (el) el.hidden = false; };
+  var hide = function (el) { if (el) el.hidden = true; };
 
   var elSpinner   = $w('sgbkSpinner');
   var elCalendar  = $w('sgbkCalendar');
@@ -49,14 +52,10 @@
   var elAlertRed  = $w('sgbkAlertRed');
   var elDemoBadge = $w('sgbkDemoBadge');
 
-  function showAlert(el, msg) {
-    el.textContent = msg;
-    show(el);
-  }
+  function showAlert(el, msg) { el.textContent = msg; show(el); }
   function hideAlert(el) { el.textContent = ''; hide(el); }
 
-  // ── Find CF7 form container ───────────────────────────────────────────────
-  // Looks for a .wpcf7 on the page matching cf7_id, or the first one found.
+  // ── CF7 helpers ───────────────────────────────────────────────────────────
   function getCF7Wrapper() {
     if (CF7_ID) {
       var el = document.querySelector('.wpcf7[data-id="' + CF7_ID + '"]');
@@ -64,11 +63,9 @@
     }
     return document.querySelector('.wpcf7');
   }
-
-  // Get a hidden input inside the CF7 form by field name
   function cf7Field(name) {
-    var wrapper = getCF7Wrapper();
-    return wrapper ? wrapper.querySelector('[name="' + name + '"]') : null;
+    var w = getCF7Wrapper();
+    return w ? w.querySelector('[name="' + name + '"]') : null;
   }
 
   // ── Date utilities ────────────────────────────────────────────────────────
@@ -90,7 +87,7 @@
     return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] + ' ' + d.getDate();
   }
 
-  // ── Build date strip ──────────────────────────────────────────────────────
+  // ── Date strip ────────────────────────────────────────────────────────────
   function buildDateStrip() {
     var weekdays = getNext14Weekdays();
     elDateStrip.innerHTML = '';
@@ -114,7 +111,7 @@
     _selectedDate = toYMD(weekdays[0]);
   }
 
-  // ── Fetch slots from Vercel API ───────────────────────────────────────────
+  // ── Fetch slots from WP REST API ──────────────────────────────────────────
   function fetchSlots(date) {
     elSlotGrid.innerHTML = '';
     show(elSlotLoad);
@@ -122,14 +119,14 @@
     hideAlert(elAlertAmb);
 
     var tz  = encodeURIComponent(_timezone);
-    var url = API_URL + '/api/availability?region=' + _region + '&date=' + date + '&timezone=' + tz;
+    var url = API_BASE + '/availability?region=' + _region + '&date=' + date + '&timezone=' + tz;
 
-    fetch(url)
+    fetch(url, { headers: { 'X-WP-Nonce': WP_NONCE } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         hide(elSlotLoad);
         if (data.demo) show(elDemoBadge);
-        if (data.error) {
+        if (data.code) { // WP_Error returns { code, message }
           elSlotGrid.innerHTML = '<div class="sgbk-avail-error">Unable to load availability. Please refresh the page.</div>';
           return;
         }
@@ -166,7 +163,6 @@
     btn.classList.add('is-selected');
     _selectedSlot = slot;
 
-    // Pre-fill CF7 hidden fields
     var fSlot    = cf7Field('booking-slot');
     var fRegion  = cf7Field('booking-region');
     var fTz      = cf7Field('booking-timezone');
@@ -176,13 +172,11 @@
     if (fTz)      fTz.value      = _timezone;
     if (fCountry) fCountry.value = _country;
 
-    // Show summary above form
     elSummary.innerHTML = '&#128197; <strong>' + slot.display +
       '</strong> <span style="font-weight:400;opacity:0.6">(your local time)</span>';
     show(elSummary);
     show(elBtnBack);
 
-    // Scroll CF7 form into view
     var wrapper = getCF7Wrapper();
     if (wrapper) {
       setTimeout(function () {
@@ -198,7 +192,6 @@
     elSlotGrid.querySelectorAll('.sgbk-slot-btn').forEach(function (b) {
       b.classList.remove('is-selected');
     });
-    // Clear hidden fields
     ['booking-slot','booking-region','booking-timezone','booking-country'].forEach(function (n) {
       var f = cf7Field(n); if (f) f.value = '';
     });
@@ -211,25 +204,26 @@
     widget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
-  // ── Listen to CF7 mailsent → call Vercel booking API ─────────────────────
+  // ── CF7 mailsent → POST /wp-json/sgbk/v1/book ────────────────────────────
   document.addEventListener('wpcf7mailsent', function (event) {
-    // Filter by form ID if specified
     if (CF7_ID && event.detail.contactFormId !== CF7_ID) return;
 
-    // Extract field values from CF7 event detail
     var inputs = {};
     (event.detail.inputs || []).forEach(function (inp) {
       inputs[inp.name] = inp.value;
     });
 
     var slot = inputs['booking-slot'];
-    if (!slot) return; // not a booking form submission
+    if (!slot) return;
 
     _email = inputs['your-email'] || inputs['email'] || '';
 
-    fetch(API_URL + '/api/book', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch(API_BASE + '/book', {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce':   WP_NONCE,
+      },
       body: JSON.stringify({
         region:      inputs['booking-region']   || _region,
         slot:        slot,
@@ -244,7 +238,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data.error === 'slot_taken') {
+        if (data.code === 'slot_taken') {
           clearSlotSelection();
           showAlert(elAlertAmb, data.message || 'That slot was just taken — please pick another time.');
           fetchSlots(_selectedDate);
@@ -261,9 +255,8 @@
       });
   }, false);
 
-  // ── Confirmation panel ────────────────────────────────────────────────────
+  // ── Confirmation ──────────────────────────────────────────────────────────
   function showConfirmation(data) {
-    // Hide the calendar section and any CF7 wrapper
     hide(elCalendar);
     var wrapper = getCF7Wrapper();
     if (wrapper) hide(wrapper);
@@ -288,7 +281,7 @@
     widget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // ── IP detection → init calendar ──────────────────────────────────────────
+  // ── IP detection ──────────────────────────────────────────────────────────
   function initCalendar() {
     hide(elSpinner);
     show(elCalendar);
