@@ -146,16 +146,33 @@ const server = http.createServer(function (req, res) {
   });
 });
 
-server.listen(PORT, function () {
-  console.log('');
-  console.log('  Sogolytics Demo Booking — local dev server');
-  console.log('  ─────────────────────────────────────────');
-  console.log('  http://localhost:' + PORT);
-  console.log('');
-  console.log('  API routes:');
-  console.log('    GET  /api/availability?region=us&date=YYYY-MM-DD&timezone=...');
-  console.log('    POST /api/book');
-  console.log('');
-  console.log('  Press Ctrl+C to stop.');
-  console.log('');
+function listen(port) {
+  server.listen(port, function () {
+    console.log('');
+    console.log('  Sogolytics Demo Booking — local dev server');
+    console.log('  ─────────────────────────────────────────');
+    console.log('  http://localhost:' + port);
+    console.log('');
+    console.log('  API routes:');
+    console.log('    GET  /api/availability?region=us&date=YYYY-MM-DD&timezone=...');
+    console.log('    POST /api/book');
+    console.log('');
+    console.log('  Press Ctrl+C to stop.');
+    console.log('');
+  });
+}
+
+server.on('error', function (err) {
+  if (err.code === 'EADDRINUSE') {
+    var next = (server._port || PORT) + 1;
+    server._port = next;
+    console.warn('[dev] Port ' + (next - 1) + ' in use, trying ' + next + '...');
+    server.close();
+    listen(next);
+  } else {
+    throw err;
+  }
 });
+
+server._port = PORT;
+listen(PORT);
