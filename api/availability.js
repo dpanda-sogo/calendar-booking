@@ -6,6 +6,41 @@ const CAL_TIMEZONES = {
   row: 'Asia/Kolkata',
 };
 
+// Demo mode: active when Azure credentials are not configured
+function isDemoMode() {
+  const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
+  return !AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET;
+}
+
+// Generate realistic-looking free slots for a given date + timezone
+function mockSlots(date, timezone) {
+  const calTz = 'America/New_York';
+  const dt = DateTime.fromISO(date, { zone: 'UTC' });
+
+  // Skip weekends
+  if (dt.setZone(calTz).weekday >= 6) return [];
+
+  // Seed variation by date so each day looks different
+  const seed = dt.day + dt.month * 31;
+  const allStarts = [9, 9.5, 10, 10.5, 11, 13, 13.5, 14, 14.5, 15, 15.5, 16];
+  const free = allStarts.filter((_, i) => (seed + i) % 3 !== 0);
+
+  return free.map(function (h) {
+    const hour = Math.floor(h);
+    const minute = h % 1 === 0.5 ? 30 : 0;
+    const slotCal = DateTime.fromObject(
+      { year: dt.year, month: dt.month, day: dt.day, hour, minute },
+      { zone: calTz }
+    );
+    const slotUtc = slotCal.toUTC();
+    const slotUser = slotUtc.setZone(timezone);
+    return {
+      iso: slotUtc.toISO(),
+      display: slotUser.toFormat("cccc, LLLL d · h:mm a"),
+    };
+  });
+}
+
 async function getGraphToken() {
   const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
   const url = `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`;
@@ -36,8 +71,15 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'missing_date' });
   }
 
-  const calEmail =
-    region === 'us' ? process.env.CAL_US : process.env.CAL_ROW;
+  // ── Demo mode ────────────────────────────────────────────────────────────
+  if (isDemoMode()) {
+    console.log('[availability] demo mode — returning mock slots for', date);
+    const slots = mockSlots(date, timezone);
+    return res.status(200).json({ slots, timezone, calRegion: region, demo: true });
+  }
+
+  // ── Live mode ────────────────────────────────────────────────────────────
+  const calEmail = region === 'us' ? process.env.CAL_US : process.env.CAL_ROW;
   const calTz = CAL_TIMEZONES[region] || CAL_TIMEZONES.row;
 
   let token;
@@ -89,31 +131,18 @@ module.exports = async function handler(req, res) {
       minutes: i * 30,
     });
 
-    // Check weekday (ISO weekday: 1=Mon … 7=Sun)
     if (slotUtc.weekday >= 6) continue;
 
-    // Check working hours in calendar owner's timezone
     const slotCal = slotUtc.setZone(calTz);
-    const hour = slotCal.hour;
-    const minute = slotCal.minute;
-    const totalMinutes = hour * 60 + minute;
-    // 9:00 AM = 540 min, 5:00 PM = 1020 min (slot must start before 17:00)
+    const totalMinutes = slotCal.hour * 60 + slotCal.minute;
     if (totalMinutes < 540 || totalMinutes >= 1020) continue;
 
-    // Convert to user's timezone for display
     const slotUser = slotUtc.setZone(timezone);
-    const display =
-      slotUser.toFormat("cccc, LLLL d · h:mm a");
-
     slots.push({
       iso: slotUtc.toISO(),
-      display,
+      display: slotUser.toFormat("cccc, LLLL d · h:mm a"),
     });
   }
 
-  return res.status(200).json({
-    slots,
-    timezone,
-    calRegion: region,
-  });
+  return res.status(200).json({ slots, timezone, calRegion: region });
 };

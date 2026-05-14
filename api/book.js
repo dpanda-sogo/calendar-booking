@@ -1,6 +1,12 @@
 const fetch = require('node-fetch');
 const { DateTime } = require('luxon');
 
+// Demo mode: active when Azure credentials are not configured
+function isDemoMode() {
+  const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
+  return !AZURE_TENANT_ID || !AZURE_CLIENT_ID || !AZURE_CLIENT_SECRET;
+}
+
 async function getGraphToken() {
   const { AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET } = process.env;
   const url = `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`;
@@ -96,8 +102,22 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'missing_fields' });
   }
 
-  const calEmail =
-    region === 'us' ? process.env.CAL_US : process.env.CAL_ROW;
+  // ── Demo mode ────────────────────────────────────────────────────────────
+  if (isDemoMode()) {
+    console.log('[book] demo mode — simulating booking for', email, 'at', slot);
+    // Simulate a short processing delay
+    await new Promise(function (r) { setTimeout(r, 800); });
+    return res.status(200).json({
+      success: true,
+      meetingLink: null,
+      eventId: 'demo-' + Date.now(),
+      bookedSlot: slot,
+      demo: true,
+    });
+  }
+
+  // ── Live mode ────────────────────────────────────────────────────────────
+  const calEmail = region === 'us' ? process.env.CAL_US : process.env.CAL_ROW;
 
   let token;
   try {
@@ -150,7 +170,6 @@ module.exports = async function handler(req, res) {
     if (!eventRes.ok) {
       const text = await eventRes.text();
       console.error('[book] event creation failed', eventRes.status, text);
-      // Treat conflict as slot_taken
       if (eventRes.status === 409 || text.toLowerCase().includes('conflict')) {
         return res.status(500).json({
           error: 'slot_taken',
@@ -165,13 +184,12 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'booking_failed', detail: err.message });
   }
 
-  // Create SF lead — failure must not block response
   createSalesforceLead({ firstName, lastName, email, phone, projectType, country });
 
   const meetingLink =
     eventData.onlineMeeting && eventData.onlineMeeting.joinUrl
       ? eventData.onlineMeeting.joinUrl
-      : (eventData.onlineMeetingProvider ? null : null);
+      : null;
 
   return res.status(200).json({
     success: true,
