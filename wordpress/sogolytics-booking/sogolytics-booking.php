@@ -176,6 +176,23 @@ function sgbk_settings_page() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Allow unauthenticated REST access for booking + CF7 endpoints.
+   Priority 999 ensures this runs AFTER WPO365 (which blocks at ~10),
+   so we can override its 401 for these specific public routes.
+   ───────────────────────────────────────────────────────────────────────── */
+
+add_filter( 'rest_authentication_errors', function ( $result ) {
+    $uri = $_SERVER['REQUEST_URI'] ?? '';
+    if (
+        strpos( $uri, '/contact-form-7/' ) !== false ||
+        strpos( $uri, '/sgbk/' ) !== false
+    ) {
+        return null; // override WPO365 block — these routes are intentionally public
+    }
+    return $result;
+}, 999 );
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Enqueue assets
    ───────────────────────────────────────────────────────────────────────── */
 
