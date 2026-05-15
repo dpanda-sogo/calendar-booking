@@ -79,8 +79,13 @@ function sgbk_get_graph_token( $opts ) {
 
     $code = wp_remote_retrieve_response_code( $response );
     if ( $code !== 200 ) {
-        error_log( '[sgbk availability] getGraphToken HTTP ' . $code . ': ' . wp_remote_retrieve_body( $response ) );
-        return new WP_Error( 'auth_failed', 'Graph token HTTP ' . $code );
+        $body      = wp_remote_retrieve_body( $response );
+        $body_json = json_decode( $body, true );
+        $az_error  = $body_json['error'] ?? '';
+        $az_desc   = $body_json['error_description'] ?? $body;
+        error_log( '[sgbk availability] getGraphToken HTTP ' . $code . ' — ' . $az_error . ': ' . $az_desc );
+        // Surface the Azure error code so admins can diagnose without reading server logs
+        return new WP_Error( 'auth_failed', 'Azure AD error ' . $az_error . ': ' . $az_desc, [ 'status' => 500 ] );
     }
 
     $data = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -105,11 +110,14 @@ function sgbk_availability_handler( WP_REST_Request $req ) {
         $tz = 'UTC';
     }
 
-    $opts      = get_option( 'sgbk_settings', [] );
-    $tenant_id = $opts['azure_tenant_id'] ?? '';
+    $opts = get_option( 'sgbk_settings', [] );
+
+    $tenant_id     = $opts['azure_tenant_id']     ?? '';
+    $client_id     = $opts['azure_client_id']     ?? '';
+    $client_secret = $opts['azure_client_secret'] ?? '';
 
     /* ── Demo mode ── */
-    if ( empty( $tenant_id ) ) {
+    if ( empty( $tenant_id ) || empty( $client_id ) || empty( $client_secret ) ) {
         error_log( '[sgbk availability] demo mode for ' . $date );
         return rest_ensure_response( [
             'slots'     => sgbk_mock_slots( $date, $tz ),
@@ -131,7 +139,7 @@ function sgbk_availability_handler( WP_REST_Request $req ) {
 
     $token = sgbk_get_graph_token( $opts );
     if ( is_wp_error( $token ) ) {
-        return new WP_Error( 'auth_failed', 'Calendar authentication failed', [ 'status' => 500 ] );
+        return new WP_Error( 'auth_failed', $token->get_error_message(), [ 'status' => 500 ] );
     }
 
     // Call Graph getSchedule

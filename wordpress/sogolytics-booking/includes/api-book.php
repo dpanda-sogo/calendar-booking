@@ -90,11 +90,14 @@ function sgbk_book_handler( WP_REST_Request $req ) {
         return new WP_Error( 'missing_fields', 'Required fields missing', [ 'status' => 400 ] );
     }
 
-    $opts      = get_option( 'sgbk_settings', [] );
-    $tenant_id = $opts['azure_tenant_id'] ?? '';
+    $opts = get_option( 'sgbk_settings', [] );
+
+    $tenant_id     = $opts['azure_tenant_id']     ?? '';
+    $client_id     = $opts['azure_client_id']     ?? '';
+    $client_secret = $opts['azure_client_secret'] ?? '';
 
     /* ── Demo mode ── */
-    if ( empty( $tenant_id ) ) {
+    if ( empty( $tenant_id ) || empty( $client_id ) || empty( $client_secret ) ) {
         error_log( '[sgbk book] demo mode — simulating booking for ' . $email );
         // Small delay to simulate network call in demo mode
         usleep( 500000 );
@@ -112,10 +115,10 @@ function sgbk_book_handler( WP_REST_Request $req ) {
         ? ( $opts['cal_us']  ?? 'us-demos@sogolytics.com' )
         : ( $opts['cal_row'] ?? 'row-demos@sogolytics.com' );
 
-    // Get Graph token
-    $token = sgbk_get_graph_token( $opts ); // defined in api-availability.php
+    // Get Graph token (sgbk_get_graph_token defined in api-availability.php)
+    $token = sgbk_get_graph_token( $opts );
     if ( is_wp_error( $token ) ) {
-        return new WP_Error( 'auth_failed', 'Calendar authentication failed', [ 'status' => 500 ] );
+        return new WP_Error( 'auth_failed', $token->get_error_message(), [ 'status' => 500 ] );
     }
 
     // Build event times
@@ -183,7 +186,14 @@ function sgbk_book_handler( WP_REST_Request $req ) {
 
     // Fire-and-forget SF lead (non-blocking)
     if ( ! empty( $opts['sf_client_id'] ) ) {
-        sgbk_create_sf_lead( $opts, compact( 'first_name', 'last_name', 'email', 'phone', 'project', 'country' ) );
+        sgbk_create_sf_lead( $opts, [
+            'firstName'   => $first_name,
+            'lastName'    => $last_name,
+            'email'       => $email,
+            'phone'       => $phone,
+            'projectType' => $project,
+            'country'     => $country,
+        ] );
     }
 
     return rest_ensure_response( [
